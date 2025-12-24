@@ -1,0 +1,466 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>决策组件中心 - 风控决策引擎</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/react@18/umd/react.development.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.development.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap');
+        body { font-family: 'Inter', sans-serif; background-color: #f8fafc; }
+        .font-mono { font-family: 'JetBrains Mono', monospace; }
+        
+        /* Sidebar Active State */
+        .sidebar-active { @apply bg-blue-50 text-blue-600 border-r-2 border-blue-600; }
+        .form-input { @apply w-full border border-slate-300 rounded-lg px-3 py-2 text-sm focus:ring-2 focus:ring-blue-500 focus:border-blue-500 outline-none transition; }
+        .form-label { @apply block text-xs font-semibold text-slate-500 mb-1.5; }
+        
+        /* Syntax Highlighting */
+        .token-keyword { color: #c678dd; }
+        .token-fn { color: #61afef; }
+        .token-str { color: #98c379; }
+        .token-comment { color: #7f848e; font-style: italic; }
+        .token-num { color: #d19a66; }
+        .token-type { color: #56b6c2; }
+
+        /* Animation */
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.3s ease-out forwards; }
+        .lineage-path { stroke-dasharray: 1000; stroke-dashoffset: 1000; animation: dash 2s ease-out forwards; }
+        @keyframes dash { to { stroke-dashoffset: 0; } }
+
+        /* Scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect, useMemo } = React;
+
+        // --- Icons ---
+        const Icon = ({ children, size = 18, className = "" }) => (
+            <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className}>{children}</svg>
+        );
+        const Icons = {
+            Server: <Icon><rect width="20" height="8" x="2" y="2" rx="2" ry="2"/><rect width="20" height="8" x="2" y="14" rx="2" ry="2"/><line x1="6" x2="6.01" y1="6" y2="6"/><line x1="6" x2="6.01" y1="18" y2="18"/></Icon>,
+            Database: <Icon><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></Icon>,
+            Settings: <Icon><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></Icon>,
+            Box: <Icon><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></Icon>,
+            Search: <Icon><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></Icon>,
+            Plus: <Icon><path d="M5 12h14"/><path d="M12 5v14"/></Icon>,
+            ArrowLeft: <Icon><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></Icon>,
+            Play: <Icon><polygon points="5 3 19 12 5 21 5 3"/></Icon>,
+            Save: <Icon><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></Icon>,
+            GitBranch: <Icon><line x1="6" x2="6" y1="3" y2="15"/><circle cx="18" cy="6" r="3"/><circle cx="6" cy="18" r="3"/><path d="M18 9a9 9 0 0 1-9 9"/></Icon>,
+            FileCode: <Icon><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"/><polyline points="14 2 14 8 20 8"/><path d="m9 15 2 2 4-4"/></Icon>,
+            List: <Icon><line x1="8" x2="21" y1="6" y2="6"/><line x1="8" x2="21" y1="12" y2="12"/><line x1="8" x2="21" y1="18" y2="18"/><line x1="3" x2="3.01" y1="6" y2="6"/><line x1="3" x2="3.01" y1="12" y2="12"/><line x1="3" x2="3.01" y1="18" y2="18"/></Icon>,
+            X: <Icon><path d="M18 6 6 18"/><path d="m6 6 12 12"/></Icon>,
+            CheckCircle: <Icon><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></Icon>,
+            History: <Icon><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></Icon>,
+            Table: <Icon><path d="M12 3v18"/><rect width="18" height="18" x="3" y="3" rx="2"/><path d="M3 9h18"/><path d="M3 15h18"/></Icon>,
+            Tree: <Icon><circle cx="12" cy="5" r="3"/><path d="m6.5 13.5 4-6"/><path d="m17.5 13.5-4-6"/><path d="m6.5 13.5-1.5 5"/><path d="m6.5 13.5 3 5"/><path d="m17.5 13.5 1.5 5"/><path d="m17.5 13.5-3 5"/></Icon>
+        };
+
+        // --- Data ---
+        const BIZ_LINES = ['全部业务', '信贷审批', '反欺诈 (Fraud)', '交易风控'];
+        const COMPONENT_TYPES = [
+            { id: 'RULE_SET', name: '规则集 (Rule Set)', icon: Icons.FileCode, desc: '适用于复杂逻辑判断，使用 DSL 编写' },
+            { id: 'SCORECARD', name: '评分卡 (Scorecard)', icon: Icons.Table, desc: '适用于信用评分，基于权重的表格配置' },
+            { id: 'DECISION_TREE', name: '决策树 (Decision Tree)', icon: Icons.Tree, desc: '适用于分层策略，可视化分支配置' }
+        ];
+
+        const ASSETS_VARS = [
+            { id: 'v1', name: 'txn_amount', type: 'float', desc: '交易金额' },
+            { id: 'v2', name: 'user_id', type: 'string', desc: '用户ID' },
+            { id: 'v3', name: 'ip_city', type: 'string', desc: 'IP归属城市' },
+            { id: 'v4', name: 'last_login_city', type: 'string', desc: '上次登录城市' },
+            { id: 'v5', name: 'daily_txn_cnt', type: 'int', desc: '当日交易次数' },
+            { id: 'v6', name: 'is_new_device', type: 'bool', desc: '是否新设备' },
+            { id: 'v7', name: 'device_id', type: 'string', desc: '设备指纹ID' },
+        ];
+
+        const ASSETS_FUNCS = [
+            { name: 'Max(a, b)', desc: '取最大值' },
+            { name: 'Min(a, b)', desc: '取最小值' },
+            { name: 'Contains(str, sub)', desc: '包含字符串' },
+            { name: 'DateDiff(d1, d2)', desc: '日期差' },
+            { name: 'InList(val, list)', desc: '在列表中' },
+        ];
+
+        const INITIAL_STRATEGIES = [
+            { id: 'S_001', name: '大额反洗钱阻断规则集', type: 'RULE_SET', business: '反洗钱 (AML)', version: 'v2.1', status: 'Active', updated: '10分钟前', author: '王大锤' },
+            { id: 'S_002', name: '通用信用评分卡A卡', type: 'SCORECARD', business: '信贷审批', version: 'v1.5', status: 'Active', updated: '2小时前', author: '李策略' },
+            { id: 'S_003', name: '登录异常决策树', type: 'DECISION_TREE', business: '反欺诈 (Fraud)', version: 'v1.0', status: 'Testing', updated: '1天前', author: '张风控' },
+        ];
+
+        // --- Components ---
+
+        const Sidebar = () => (
+            <div className="w-64 bg-white h-screen border-r border-slate-200 flex flex-col z-10 shrink-0">
+                <div className="h-16 flex items-center px-6 border-b border-slate-100">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center text-white mr-3 shadow-md">
+                        {Icons.Server}
+                    </div>
+                    <span className="font-bold text-slate-800 tracking-tight">风控决策引擎</span>
+                </div>
+                <div className="p-4">
+                    <div className="text-xs font-bold text-slate-400 uppercase mb-2 px-2">决策基石</div>
+                    <div className="space-y-1">
+                        <div className="px-4 py-2.5 rounded-lg flex items-center cursor-pointer text-slate-600 hover:bg-slate-50 transition">
+                            <span className="mr-3">{Icons.Database}</span> 数据源管理
+                        </div>
+                        <div className="px-4 py-2.5 rounded-lg flex items-center cursor-pointer text-slate-600 hover:bg-slate-50 transition">
+                            <span className="mr-3">{Icons.Settings}</span> 变量中心
+                        </div>
+                        <div className="px-4 py-2.5 rounded-lg flex items-center cursor-pointer sidebar-active">
+                            <span className="mr-3">{Icons.Box}</span> 决策组件
+                        </div>
+                    </div>
+                </div>
+            </div>
+        );
+
+        // 新建组件弹窗
+        const CreateModal = ({ isOpen, onClose, onSave }) => {
+            const [formData, setFormData] = useState({ name: '', id: '', type: 'RULE_SET', business: '信贷审批' });
+
+            if (!isOpen) return null;
+
+            return (
+                <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm animate-fade-in">
+                    <div className="bg-white rounded-xl shadow-2xl w-[600px] overflow-hidden flex flex-col">
+                        <div className="px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+                            <h3 className="font-bold text-slate-800 text-lg">新建决策组件</h3>
+                            <button onClick={onClose} className="text-slate-400 hover:text-slate-600">{Icons.X}</button>
+                        </div>
+                        <div className="p-6 space-y-5">
+                            <div>
+                                <label className="form-label">组件名称</label>
+                                <input type="text" className="form-input" placeholder="例如: 贷前准入规则集" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <label className="form-label">组件 ID (唯一标识)</label>
+                                    <input type="text" className="form-input font-mono" placeholder="S_LOAN_001" value={formData.id} onChange={e => setFormData({...formData, id: e.target.value})} />
+                                </div>
+                                <div>
+                                    <label className="form-label">归属业务</label>
+                                    <select className="form-input" value={formData.business} onChange={e => setFormData({...formData, business: e.target.value})}>
+                                        {BIZ_LINES.slice(1).map(b => <option key={b}>{b}</option>)}
+                                    </select>
+                                </div>
+                            </div>
+                            <div>
+                                <label className="form-label">组件类型</label>
+                                <div className="grid grid-cols-1 gap-3">
+                                    {COMPONENT_TYPES.map(t => (
+                                        <div 
+                                            key={t.id}
+                                            onClick={() => setFormData({...formData, type: t.id})}
+                                            className={`p-3 border rounded-lg cursor-pointer flex items-center gap-3 transition ${formData.type === t.id ? 'border-blue-500 bg-blue-50 ring-1 ring-blue-500' : 'border-slate-200 hover:bg-slate-50'}`}
+                                        >
+                                            <div className={`${formData.type === t.id ? 'text-blue-600' : 'text-slate-400'}`}>{t.icon}</div>
+                                            <div>
+                                                <div className="text-sm font-bold text-slate-700">{t.name}</div>
+                                                <div className="text-xs text-slate-500">{t.desc}</div>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="px-6 py-4 bg-slate-50 border-t border-slate-100 flex justify-end gap-3">
+                            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 hover:bg-white border border-transparent hover:border-slate-200 rounded-lg transition">取消</button>
+                            <button onClick={() => onSave(formData)} className="px-4 py-2 text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 rounded-lg shadow-sm transition">确认创建</button>
+                        </div>
+                    </div>
+                </div>
+            );
+        };
+
+        const StrategyEditor = ({ strategy, onBack, onUpdateStatus }) => {
+            const [viewMode, setViewMode] = useState('CODE'); // CODE, LINEAGE
+            const [code, setCode] = useState(`// 规则集: ${strategy.name}\n// 类型: ${strategy.type}\n\npackage rules.loan\n\nrule "Basic_Check" {\n    when {\n        txn_amount > 50000 &&\n        is_new_device == true\n    }\n    then {\n        return REJECT, "High Risk"\n    }\n}`);
+            const [consoleOutput, setConsoleOutput] = useState([]);
+            const [showDiff, setShowDiff] = useState(false);
+            const [searchAsset, setSearchAsset] = useState('');
+            const [activeTab, setActiveTab] = useState('VARS');
+            const [isRunning, setIsRunning] = useState(false);
+
+            const filteredVars = ASSETS_VARS.filter(v => v.name.toLowerCase().includes(searchAsset.toLowerCase()) || v.desc.includes(searchAsset));
+            const filteredFuncs = ASSETS_FUNCS.filter(f => f.name.toLowerCase().includes(searchAsset.toLowerCase()));
+
+            const handleRun = () => {
+                setIsRunning(true);
+                setConsoleOutput([{ type: 'info', msg: 'Compiling...' }]);
+                setTimeout(() => {
+                    setIsRunning(false);
+                    setConsoleOutput([
+                        { type: 'info', msg: 'Compiling... Done' },
+                        { type: 'result', msg: 'Result: REJECT' }
+                    ]);
+                }, 800);
+            };
+
+            // 血缘图谱渲染
+            const renderLineage = () => (
+                <div className="flex-1 bg-slate-50 relative flex items-center justify-center overflow-hidden">
+                    <div className="absolute inset-0" style={{backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)', backgroundSize: '20px 20px'}}></div>
+                    <svg width="800" height="500" className="z-10">
+                        <defs>
+                            <marker id="arrow" markerWidth="10" markerHeight="10" refX="10" refY="3" orient="auto" markerUnits="strokeWidth"><path d="M0,0 L0,6 L9,3 z" fill="#94a3b8" /></marker>
+                        </defs>
+                        {/* Lines */}
+                        <g stroke="#94a3b8" strokeWidth="1.5" fill="none" markerEnd="url(#arrow)">
+                            <path d="M200,150 C300,150 300,250 400,250" className="lineage-path" />
+                            <path d="M200,350 C300,350 300,250 400,250" className="lineage-path" style={{animationDelay: '0.2s'}} />
+                        </g>
+                        {/* Nodes */}
+                        <g transform="translate(60, 120)">
+                            <rect width="160" height="60" rx="6" fill="white" stroke="#e2e8f0" strokeWidth="1" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.05))"/>
+                            <circle cx="20" cy="30" r="4" fill="#f59e0b" />
+                            <text x="35" y="25" fontSize="10" fill="#64748b" fontWeight="bold">变量 (Variable)</text>
+                            <text x="35" y="45" fontSize="12" fill="#1e293b" fontWeight="bold">txn_amount</text>
+                        </g>
+                        <g transform="translate(60, 320)">
+                            <rect width="160" height="60" rx="6" fill="white" stroke="#e2e8f0" strokeWidth="1" filter="drop-shadow(0 2px 4px rgba(0,0,0,0.05))"/>
+                            <circle cx="20" cy="30" r="4" fill="#f59e0b" />
+                            <text x="35" y="25" fontSize="10" fill="#64748b" fontWeight="bold">变量 (Variable)</text>
+                            <text x="35" y="45" fontSize="12" fill="#1e293b" fontWeight="bold">is_new_device</text>
+                        </g>
+                        <g transform="translate(400, 215)">
+                            <rect width="200" height="70" rx="8" fill="white" stroke="#3b82f6" strokeWidth="2" filter="drop-shadow(0 4px 6px rgba(59, 130, 246, 0.1))" />
+                            <rect width="6" height="70" rx="3" fill="#3b82f6" />
+                            <text x="25" y="25" fontSize="10" fill="#3b82f6" fontWeight="bold">当前组件 (Component)</text>
+                            <text x="25" y="45" fontSize="14" fill="#1e293b" fontWeight="bold">{strategy.name}</text>
+                        </g>
+                    </svg>
+                    <div className="absolute top-4 right-4 bg-white/90 p-3 rounded-lg border border-slate-200 text-xs text-slate-500 shadow-sm">
+                        <div className="font-bold mb-1">依赖分析报告</div>
+                        <div>直接引用变量: 2 个</div>
+                        <div>引用函数: 0 个</div>
+                        <div>循环依赖: 无</div>
+                    </div>
+                </div>
+            );
+
+            return (
+                <div className="flex flex-col h-full bg-slate-50 animate-fade-in relative">
+                    {/* Editor Header */}
+                    <div className="h-16 border-b border-slate-200 flex justify-between items-center px-6 shrink-0 bg-white shadow-sm z-10">
+                        <div className="flex items-center gap-4">
+                            <button onClick={onBack} className="p-2 hover:bg-slate-100 rounded-lg text-slate-500 transition">{Icons.ArrowLeft}</button>
+                            <div>
+                                <div className="flex items-center gap-3">
+                                    <h2 className="text-lg font-bold text-slate-800">{strategy.name}</h2>
+                                    <span className={`px-2 py-0.5 rounded text-xs font-medium border bg-purple-50 text-purple-600 border-purple-200`}>
+                                        {strategy.type}
+                                    </span>
+                                </div>
+                                <div className="text-xs text-slate-500 mt-0.5">{strategy.business} · {strategy.author}</div>
+                            </div>
+                        </div>
+
+                        {/* View Switcher (Requirement #4) */}
+                        <div className="bg-slate-100 p-1 rounded-lg flex">
+                            <button 
+                                onClick={() => setViewMode('CODE')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-2 ${viewMode === 'CODE' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {Icons.FileCode} 编排视图
+                            </button>
+                            <button 
+                                onClick={() => setViewMode('LINEAGE')}
+                                className={`px-3 py-1.5 text-xs font-medium rounded-md transition flex items-center gap-2 ${viewMode === 'LINEAGE' ? 'bg-white shadow-sm text-blue-600' : 'text-slate-500 hover:text-slate-700'}`}
+                            >
+                                {Icons.GitBranch} 血缘依赖
+                            </button>
+                        </div>
+
+                        <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 bg-slate-100 px-3 py-1.5 rounded-lg border border-slate-200">
+                                <label className="text-xs font-bold text-slate-500">状态:</label>
+                                <select 
+                                    value={strategy.status} 
+                                    onChange={(e) => onUpdateStatus(strategy.id, e.target.value)}
+                                    className="bg-transparent text-xs font-bold outline-none cursor-pointer text-slate-700"
+                                >
+                                    <option>Testing</option>
+                                    <option>Active</option>
+                                    <option>Draft</option>
+                                </select>
+                                <span className={`w-2 h-2 rounded-full ${strategy.status === 'Active' ? 'bg-green-500' : 'bg-blue-500'}`}></span>
+                            </div>
+                            <button className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm font-medium shadow-sm transition flex items-center gap-2">
+                                {Icons.Save} 保存发布
+                            </button>
+                        </div>
+                    </div>
+
+                    {/* Main Content */}
+                    <div className="flex-1 flex overflow-hidden">
+                        
+                        {/* Left: Asset Library (Requirement #5) */}
+                        <div className="w-64 bg-white border-r border-slate-200 flex flex-col shrink-0">
+                            <div className="p-3 border-b border-slate-100">
+                                <div className="relative">
+                                    <span className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400">{Icons.Search}</span>
+                                    <input 
+                                        type="text" 
+                                        placeholder="搜索变量或函数..." 
+                                        className="w-full pl-8 pr-3 py-1.5 bg-slate-50 border border-slate-200 rounded text-xs focus:ring-1 focus:ring-blue-500 outline-none"
+                                        value={searchAsset}
+                                        onChange={e => setSearchAsset(e.target.value)}
+                                    />
+                                </div>
+                            </div>
+                            <div className="flex border-b border-slate-100">
+                                <button onClick={() => setActiveTab('VARS')} className={`flex-1 py-2.5 text-xs font-bold transition ${activeTab === 'VARS' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}>变量池</button>
+                                <button onClick={() => setActiveTab('FUNCS')} className={`flex-1 py-2.5 text-xs font-bold transition ${activeTab === 'FUNCS' ? 'text-blue-600 border-b-2 border-blue-600' : 'text-slate-500'}`}>函数库</button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto p-2 space-y-1">
+                                {activeTab === 'VARS' ? filteredVars.map(v => (
+                                    <div key={v.id} onClick={() => setCode(code + `\n${v.name}`)} className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer group">
+                                        <div className="flex justify-between items-center">
+                                            <span className="text-sm font-mono text-slate-700 font-medium group-hover:text-blue-600">{v.name}</span>
+                                            <span className="text-[10px] text-slate-400 bg-slate-50 px-1 rounded">{v.type}</span>
+                                        </div>
+                                        <div className="text-xs text-slate-400 mt-0.5">{v.desc}</div>
+                                    </div>
+                                )) : filteredFuncs.map(f => (
+                                    <div key={f.name} onClick={() => setCode(code + `\n${f.name}`)} className="px-3 py-2 hover:bg-slate-100 rounded cursor-pointer group">
+                                        <div className="text-sm font-mono text-slate-700 font-medium group-hover:text-purple-600">{f.name}</div>
+                                        <div className="text-xs text-slate-400 mt-0.5">{f.desc}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+
+                        {/* Center Area */}
+                        {viewMode === 'CODE' ? (
+                            <div className="flex-1 flex flex-col bg-[#1e1e1e] relative">
+                                <div className="flex-1 overflow-auto p-4 font-mono text-sm leading-6 text-gray-300">
+                                    <textarea value={code} onChange={e => setCode(e.target.value)} className="w-full h-full bg-transparent outline-none resize-none spell-check-false" />
+                                </div>
+                                <div className="h-48 bg-[#1e1e1e] border-t border-slate-700 flex flex-col">
+                                    <div className="h-8 bg-[#252526] flex items-center px-4 justify-between border-b border-slate-700">
+                                        <span className="text-xs text-gray-400 font-bold uppercase">调试控制台</span>
+                                        <button onClick={handleRun} className="text-xs bg-green-700 hover:bg-green-600 text-white px-2 py-0.5 rounded flex items-center gap-1">{Icons.Play} 运行</button>
+                                    </div>
+                                    <div className="flex-1 flex">
+                                        <textarea className="w-1/3 border-r border-slate-700 bg-[#2d2d2d] text-gray-300 text-xs font-mono p-2 resize-none outline-none" defaultValue={`{\n "txn_amount": 60000 \n}`}></textarea>
+                                        <div className="flex-1 p-3 font-mono text-xs overflow-y-auto">
+                                            {consoleOutput.map((l,i) => <div key={i} className={l.type === 'result' ? 'text-blue-400' : 'text-gray-400'}>{l.msg}</div>)}
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        ) : (
+                            renderLineage()
+                        )}
+
+                        {/* Right: History */}
+                        <div className="w-72 bg-white border-l border-slate-200 flex flex-col shrink-0">
+                            <div className="p-4 border-b border-slate-100 bg-slate-50"><h3 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">{Icons.GitBranch} 版本历史</h3></div>
+                            <div className="flex-1 overflow-y-auto">
+                                {[strategy.version, 'v2.0', 'v1.0'].map(v => (
+                                    <div key={v} className="px-4 py-3 border-b border-slate-50 hover:bg-slate-50 cursor-pointer" onClick={() => setShowDiff(true)}>
+                                        <div className="flex justify-between items-center mb-1">
+                                            <span className="text-sm font-bold text-slate-700 font-mono">{v}</span>
+                                            <span className="text-[10px] text-blue-600 hover:underline">Code</span>
+                                        </div>
+                                        <div className="text-xs text-slate-500">更新于 2023-12-09</div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    </div>
+                    {/* Diff Modal */}
+                    {showDiff && (
+                        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm" onClick={() => setShowDiff(false)}>
+                            <div className="bg-white rounded-xl shadow-2xl w-[800px] h-[500px] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
+                                <div className="px-5 py-3 border-b border-slate-100 bg-slate-50 flex justify-between items-center">
+                                    <h3 className="font-bold text-slate-800">版本差异对比</h3>
+                                    <button onClick={() => setShowDiff(false)} className="text-slate-400">{Icons.X}</button>
+                                </div>
+                                <div className="flex-1 flex bg-[#1e1e1e] font-mono text-xs overflow-auto p-4 text-gray-400">
+                                    <div className="flex-1 border-r border-slate-700 pr-4">
+                                        <div className="text-center mb-2">v2.0</div>
+                                        <div className="bg-red-900/30 text-red-300">- txn_amount > 100000</div>
+                                    </div>
+                                    <div className="flex-1 pl-4">
+                                        <div className="text-center mb-2">{strategy.version}</div>
+                                        <div className="bg-green-900/30 text-green-300">+ txn_amount > 50000</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        };
+
+        const App = () => {
+            const [view, setView] = useState('LIST');
+            const [strategies, setStrategies] = useState(INITIAL_STRATEGIES);
+            const [isCreateOpen, setIsCreateOpen] = useState(false);
+            const [selectedStrategyId, setSelectedStrategyId] = useState(null);
+            
+            const handleSaveNew = (data) => {
+                setStrategies([...strategies, { ...data, status: 'Draft', version: 'v1.0', updated: 'Just now', author: 'Me' }]);
+                setIsCreateOpen(false);
+            };
+
+            return (
+                <div className="flex h-screen w-screen bg-slate-50 overflow-hidden text-slate-800">
+                    <Sidebar />
+                    <div className="flex-1 flex flex-col h-screen overflow-hidden">
+                        {view === 'LIST' ? (
+                            <>
+                                <header className="h-16 bg-white border-b border-slate-200 flex items-center justify-between px-8 shadow-sm z-10 shrink-0">
+                                    <div className="font-bold text-lg text-slate-800">决策组件库</div>
+                                    <button onClick={() => setIsCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 shadow-sm transition">{Icons.Plus} 新建组件</button>
+                                </header>
+                                <div className="flex-1 overflow-y-auto px-8 py-8">
+                                    <div className="bg-white border border-slate-200 rounded-xl shadow-sm overflow-hidden">
+                                        <table className="w-full text-left text-sm">
+                                            <thead className="bg-slate-50 text-slate-500 font-semibold border-b border-slate-200">
+                                                <tr><th className="px-6 py-4">组件名称</th><th className="px-6 py-4">类型</th><th className="px-6 py-4">业务</th><th className="px-6 py-4">状态</th><th className="px-6 py-4 text-right">操作</th></tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-slate-100">
+                                                {strategies.map(s => (
+                                                    <tr key={s.id} className="hover:bg-slate-50 transition">
+                                                        <td className="px-6 py-4 font-bold text-slate-700">{s.name}<div className="text-xs font-mono text-slate-400 font-normal">{s.id}</div></td>
+                                                        <td className="px-6 py-4"><span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-purple-50 text-purple-600 border border-purple-200">{s.type}</span></td>
+                                                        <td className="px-6 py-4">{s.business}</td>
+                                                        <td className="px-6 py-4"><span className={`w-2 h-2 rounded-full inline-block mr-2 ${s.status==='Active'?'bg-green-500':'bg-blue-500'}`}></span>{s.status}</td>
+                                                        <td className="px-6 py-4 text-right"><button onClick={() => { setSelectedStrategyId(s.id); setView('EDITOR'); }} className="text-blue-600 hover:underline">编辑</button></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                                <CreateModal isOpen={isCreateOpen} onClose={() => setIsCreateOpen(false)} onSave={handleSaveNew} />
+                            </>
+                        ) : (
+                            <StrategyEditor strategy={strategies.find(s => s.id === selectedStrategyId)} onBack={() => setView('LIST')} onUpdateStatus={(id, st) => setStrategies(prev => prev.map(s => s.id === id ? { ...s, status: st } : s))} />
+                        )}
+                    </div>
+                </div>
+            );
+        };
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
